@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   // --- STATE MANAGEMENT ---
   let transactions = [
     {
@@ -60,6 +60,80 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
   let monthlyBudget = 100000;
   let editingId = null;
+
+  // --- Server-backed logging (Neon DB via Netlify function) ---
+  const LOGS_ENDPOINT =
+    (location.origin === "file://" ? "" : "") +
+    "/.netlify/functions/connect-db";
+
+  async function fetchLogs() {
+    try {
+      const res = await fetch("/.netlify/functions/connect-db");
+      if (!res.ok) {
+        console.warn("Failed to fetch logs:", res.status);
+        return [];
+      }
+      const rows = await res.json();
+      return rows; // rows are objects with {id, event_type, payload, created_at}
+    } catch (err) {
+      console.warn("Error fetching logs:", err);
+      return [];
+    }
+  }
+
+  function applyLogs(rows) {
+    // replay events to reconstruct state
+    transactions = [];
+    monthlyBudget = 100000; // default if not set by logs
+    rows.forEach((r) => {
+      const evt = r.payload || r; // payload is JSONB column
+      if (!evt || !evt.action) return;
+      switch (evt.action) {
+        case "init":
+          transactions = Array.isArray(evt.transactions)
+            ? evt.transactions
+            : transactions;
+          if (typeof evt.monthlyBudget === "number")
+            monthlyBudget = evt.monthlyBudget;
+          break;
+        case "add":
+          if (evt.transaction) transactions.push(evt.transaction);
+          break;
+        case "edit":
+          if (evt.transaction)
+            transactions = transactions.map((t) =>
+              t.id === evt.transaction.id ? evt.transaction : t
+            );
+          break;
+        case "delete":
+          transactions = transactions.filter((t) => t.id !== evt.id);
+          break;
+        case "setBudget":
+          if (typeof evt.monthlyBudget === "number")
+            monthlyBudget = evt.monthlyBudget;
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  async function appendLog(action, payload) {
+    try {
+      const body = JSON.stringify({ action, ...payload });
+      // Fire-and-forget; do not block the UI
+      await fetch("/.netlify/functions/connect-db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_type: "app_event",
+          payload: { action, ...payload },
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to append log:", err);
+    }
+  }
 
   // --- DOM ELEMENTS ---
   const addExpenseBtn = document.getElementById("add-expense-btn");
@@ -514,12 +588,14 @@ document.addEventListener("DOMContentLoaded", () => {
       transactions = transactions.map((t) =>
         t.id === editingId ? newTransaction : t
       );
+      appendLog("edit", { transaction: newTransaction });
     } else {
       transactions.push(newTransaction);
     }
 
     hideModal();
     updateAll();
+    appendLog("add", { transaction: newTransaction });
   });
 
   budgetForm.addEventListener("submit", (e) => {
@@ -529,6 +605,7 @@ document.addEventListener("DOMContentLoaded", () => {
       monthlyBudget = newBudget;
       hideBudgetModal();
       updateAll();
+      appendLog("setBudget", { monthlyBudget });
     }
   });
 
@@ -542,6 +619,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const id = parseInt(e.target.dataset.id);
       transactions = transactions.filter((t) => t.id !== id);
       updateAll();
+      appendLog("delete", { id });
     }
   });
 
@@ -558,6 +636,14 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAIInsights();
     renderChart();
     updateCrystal();
+  }
+
+  // Load server-backed logs (replay) before initializing UI
+  try {
+    const rows = await fetchLogs();
+    applyLogs(rows);
+  } catch (err) {
+    console.warn("Could not load server logs:", err);
   }
 
   init3D();
