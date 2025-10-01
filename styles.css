@@ -1,0 +1,68 @@
+/* styles.css */
+:root {
+  --neon-blue: #00bfff;
+  --neon-pink: #ff00ff;
+  --bg-color: #0d0c22;
+  --card-bg: rgba(22, 21, 54, 0.6);
+  --border-color: rgba(0, 191, 255, 0.3);
+}
+
+body {
+  background-color: var(--bg-color);
+  color: #e0e0e0;
+  font-family: "Orbitron", sans-serif;
+  overflow-x: hidden;
+}
+
+.neon-text {
+  text-shadow: 0 0 5px var(--neon-blue), 0 0 10px var(--neon-blue),
+    0 0 20px var(--neon-blue), 0 0 40px var(--neon-pink);
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0 15px rgba(0, 191, 255, 0.2);
+}
+
+.btn-cyber {
+  background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
+  border: none;
+  color: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 10px var(--neon-blue), 0 0 20px var(--neon-pink);
+}
+
+.btn-cyber:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px var(--neon-blue), 0 0 40px var(--neon-pink);
+}
+
+.modal {
+  background: rgba(13, 12, 34, 0.9);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--neon-blue);
+  border-radius: 4px;
+}
+
+#expense-canvas {
+  cursor: grab;
+}
+
+#expense-canvas:active {
+  cursor: grabbing;
+}

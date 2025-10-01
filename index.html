@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cyber Expense Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use an older three.js build that still supports Geometry (used by the current Script.js) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r110/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body class="overflow-y-auto">
+    <!-- Background Grid -->
+    <div
+      class="absolute top-0 left-0 w-full h-full z-[-1]"
+      style="
+        background-image: linear-gradient(
+            rgba(0, 191, 255, 0.1) 1px,
+            transparent 1px
+          ),
+          linear-gradient(90deg, rgba(0, 191, 255, 0.1) 1px, transparent 1px);
+        background-size: 20px 20px;
+      "
+    ></div>
+
+    <!-- Header -->
+    <header class="p-4 flex justify-between items-center card m-4">
+      <h1 class="text-2xl md:text-4xl neon-text">Anmol</h1>
+      <button
+        id="add-expense-btn"
+        class="btn-cyber px-4 py-2 rounded-lg text-sm md:text-base"
+      >
+        + ADD TRANSACTION
+      </button>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+      <!-- Left Column: Interactive 3D Dashboard & AI Insights -->
+      <div class="lg:col-span-2 flex flex-col gap-4">
+        <!-- 3D Interactive Dashboard -->
+        <div class="card p-4 h-[400px] lg:h-[500px] flex flex-col">
+          <h2 class="text-xl neon-text mb-2">3D Expense Nexus</h2>
+          <div id="canvas-container" class="flex-grow relative">
+            <div id="expense-canvas" class="w-full h-full"></div>
+            <div
+              id="tooltip"
+              class="absolute hidden bg-gray-900 text-white p-2 rounded-md text-sm pointer-events-none"
+            ></div>
+          </div>
+        </div>
+
+        <!-- AI Insights -->
+        <div class="card p-4">
+          <h2 class="text-xl neon-text mb-4">A.I. Financial Analyst</h2>
+          <div id="ai-insights">
+            <!-- AI suggestions will be populated here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Transactions & Budget -->
+      <div class="flex flex-col gap-4">
+        <!-- Budget Tracker -->
+        <div class="card p-4">
+          <h2 class="text-xl neon-text mb-4">Monthly Budget</h2>
+          <div class="flex justify-between items-center mb-2">
+            <span id="budget-spent">PKR 0</span>
+            <span id="budget-total">PKR 100,000</span>
+          </div>
+          <div class="w-full bg-gray-700 rounded-full h-4">
+            <div
+              id="budget-bar"
+              class="bg-gradient-to-r from-blue-500 to-pink-500 h-4 rounded-full"
+              style="width: 0%"
+            ></div>
+          </div>
+          <button
+            id="set-budget-btn"
+            class="mt-4 text-sm w-full text-center text-cyan-400 hover:text-cyan-200"
+          >
+            Set New Budget
+          </button>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="card p-4 flex-grow h-96">
+          <h2 class="text-xl neon-text mb-4">Recent Transactions</h2>
+          <div
+            id="transaction-list"
+            class="overflow-y-auto h-[calc(100%-40px)] pr-2"
+          >
+            <!-- Transactions will be populated here -->
+          </div>
+        </div>
+        <!-- Charts -->
+        <div class="card p-4">
+          <h2 class="text-xl neon-text mb-4">Weekly Breakdown</h2>
+          <canvas id="expenseChart"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- Add/Edit Expense Modal -->
+    <div
+      id="expense-modal"
+      class="fixed inset-0 flex items-center justify-center modal hidden z-50"
+    >
+      <div class="card p-6 rounded-lg w-11/12 md:w-1/3">
+        <h2 id="modal-title" class="text-2xl neon-text mb-4">
+          Add Transaction
+        </h2>
+        <form id="expense-form">
+          <input type="hidden" id="expense-id" />
+          <div class="mb-4">
+            <label for="type" class="block mb-2">Type</label>
+            <select
+              id="type"
+              class="w-full bg-gray-800 border border-cyan-500 rounded p-2"
+              required
+            >
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+          <div class="mb-4">
+            <label for="description" class="block mb-2">Description</label>
+            <input
+              type="text"
+              id="description"
+              class="w-full bg-gray-800 border border-cyan-500 rounded p-2"
+              required
+            />
+          </div>
+          <div class="mb-4">
+            <label for="amount" class="block mb-2">Amount (PKR)</label>
+            <input
+              type="number"
+              id="amount"
+              class="w-full bg-gray-800 border border-cyan-500 rounded p-2"
+              required
+            />
+          </div>
+          <div class="mb-4">
+            <label for="category" class="block mb-2">Category</label>
+            <select
+              id="category"
+              class="w-full bg-gray-800 border border-cyan-500 rounded p-2"
+              required
+            >
+              <option>Food</option>
+              <option>Transport</option>
+              <option>Utilities</option>
+              <option>Shopping</option>
+              <option>Investments</option>
+              <option>Entertainment</option>
+              <option>Health</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="flex justify-end gap-4">
+            <button
+              type="button"
+              id="cancel-btn"
+              class="px-4 py-2 rounded-lg border border-cyan-500"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn-cyber px-4 py-2 rounded-lg">
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Set Budget Modal -->
+    <div
+      id="budget-modal"
+      class="fixed inset-0 flex items-center justify-center modal hidden z-50"
+    >
+      <div class="card p-6 rounded-lg w-11/12 md:w-1/4">
+        <h2 class="text-2xl neon-text mb-4">Set Monthly Budget</h2>
+        <form id="budget-form">
+          <div class="mb-4">
+            <label for="budget-amount" class="block mb-2"
+              >Budget Amount (PKR)</label
+            >
+            <input
+              type="number"
+              id="budget-amount"
+              class="w-full bg-gray-800 border border-cyan-500 rounded p-2"
+              required
+            />
+          </div>
+          <div class="flex justify-end gap-4">
+            <button
+              type="button"
+              id="cancel-budget-btn"
+              class="px-4 py-2 rounded-lg border border-cyan-500"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn-cyber px-4 py-2 rounded-lg">
+              Set
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <!-- App script -->
+    <script src="Script.js"></script>
+  </body>
+</html>
