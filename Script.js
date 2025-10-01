@@ -118,6 +118,103 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
+  // --- Offline-safe queue for events ---
+  const QUEUE_KEY = "expense-tracker-queue";
+  let eventQueue = [];
+
+  function loadQueue() {
+    try {
+      const raw = localStorage.getItem(QUEUE_KEY);
+      eventQueue = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      eventQueue = [];
+    }
+  }
+
+  function saveQueue() {
+    try {
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(eventQueue));
+    } catch (e) {
+      console.warn("Could not persist queue", e);
+    }
+  }
+
+  function enqueueEvent(evt) {
+    if (!evt.clientId)
+      evt.clientId =
+        "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 9);
+    eventQueue.push(evt);
+    saveQueue();
+    applyLocalEvent(evt);
+  }
+
+  function applyLocalEvent(evt) {
+    const a = evt.action;
+    if (a === "add" && evt.transaction) {
+      if (!transactions.find((t) => t.id === evt.transaction.id)) {
+        transactions.push(evt.transaction);
+      }
+    } else if (a === "edit" && evt.transaction) {
+      transactions = transactions.map((t) =>
+        t.id === evt.transaction.id ? evt.transaction : t
+      );
+    } else if (a === "delete" && typeof evt.id !== "undefined") {
+      transactions = transactions.filter((t) => t.id !== evt.id);
+    } else if (a === "setBudget" && typeof evt.monthlyBudget === "number") {
+      monthlyBudget = evt.monthlyBudget;
+    }
+    updateAll();
+  }
+
+  async function appendLog(action, payload) {
+    const evt = { action, ...payload };
+    try {
+      const res = await fetch("/.netlify/functions/connect-db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event_type: "app_event", payload: evt }),
+      });
+      if (!res.ok) {
+        enqueueEvent(evt);
+      }
+    } catch (err) {
+      enqueueEvent(evt);
+    }
+  }
+
+  async function processQueueOnce() {
+    if (!eventQueue.length) return;
+    const copy = [...eventQueue];
+    for (let i = 0; i < copy.length; i++) {
+      const evt = copy[i];
+      try {
+        const res = await fetch("/.netlify/functions/connect-db", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ event_type: "app_event", payload: evt }),
+        });
+        if (res.ok) {
+          const idx = eventQueue.findIndex((q) => q.clientId === evt.clientId);
+          if (idx !== -1) eventQueue.splice(idx, 1);
+          saveQueue();
+        } else {
+          break;
+        }
+      } catch (err) {
+        break;
+      }
+    }
+  }
+
+  let queueIntervalId = null;
+  function startQueueProcessor() {
+    loadQueue();
+    processQueueOnce();
+    if (queueIntervalId) clearInterval(queueIntervalId);
+    queueIntervalId = setInterval(processQueueOnce, 10000);
+    window.addEventListener("online", processQueueOnce);
+  }
+
   async function appendLog(action, payload) {
     try {
       const body = JSON.stringify({ action, ...payload });
@@ -648,4 +745,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   init3D();
   updateAll();
+  // start retrying any queued events
+  startQueueProcessor();
 });
